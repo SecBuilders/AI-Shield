@@ -1,33 +1,35 @@
-import sys
-import os
-from dotenv import load_dotenv
+from io import BytesIO
 
-load_dotenv()
+from PIL import Image
 
-# Files are in the same directory now
-# sys.path.append(os.path.join(os.path.dirname(__file__), "AI TEXT"))
+from image_detection import ImageDetector
+from phishing_detection import PhishingDetector
+from text_detection import TextDetector
 
-if not os.getenv("HF_API_KEY"):
-    print("[FAIL] HF_API_KEY missing in .env file. Please create it first.")
-    exit(1)
 
-try:
-    print("Testing Text Detector (Cloud)...")
-    from text_detection import TextDetector
+def build_test_image_bytes() -> bytes:
+    image = Image.new("RGB", (256, 256), (255, 255, 255))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def run():
+    print("Testing Text Detector (Local)...")
     td = TextDetector()
-    print(td.predict("This is a test sentence."))
+    print(td.predict("This paragraph was written by a student in class."))
 
-    print("\nTesting Phishing Detector (Cloud)...")
-    from phishing_detection import PhishingDetector
+    print("\nTesting Phishing Detector (Local)...")
     pd = PhishingDetector()
-    print(pd.predict("http://google.com"))
+    print(pd.predict("Urgent: verify your account now at http://bit.ly/security-check"))
 
-    print("\nTesting Image Detector (Cloud - Init only)...")
-    from image_detection import ImageDetector
-    id = ImageDetector()
-    print("Image Detector initialized.")
+    print("\nTesting Image Detector (Local)...")
+    idet = ImageDetector()
+    sample_image_bytes = build_test_image_bytes()
+    print(idet.predict(sample_image_bytes))
 
-    print("\n[OK] Verification Complete. Cloud API is accessible.")
+    print("\n[OK] Verification complete.")
 
-except Exception as e:
-    print(f"\n[FAIL] Verification failed: {e}")
+
+if __name__ == "__main__":
+    run()
