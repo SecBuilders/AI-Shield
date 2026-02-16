@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <h2>AI Shield</h2>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tabBtn active" data-tab="text">Text</button>
+    <button class="tabBtn" data-tab="image">Image</button>
+    <button class="tabBtn" data-tab="email">Email</button>
+  </div>
+
+  <!-- TEXT SCAN -->
+  <div id="text" class="tabContent active">
+    <button id="grabTextBtn">Grab Page Text</button>
+    <textarea id="textInput" rows="6" placeholder=" paste text here..."></textarea>
+    <button id="scanTextBtn">Scan Text</button>
+    <div id="textResult" class="resultBox"></div>
+  </div>
+
+  <!-- IMAGE SCAN -->
+  <div id="image" class="tabContent">
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="scanImageBtn">Scan Image</button>
+    <div id="imageResult" class="resultBox"></div>
+  </div>
+
+  <!-- EMAIL SCAN -->
+  <div id="email" class="tabContent">
+    <textarea id="emailInput" rows="6" placeholder="Paste email content..."></textarea>
+    <button id="scanEmailBtn">Scan Email</button>
+    <div id="emailResult" class="resultBox"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
