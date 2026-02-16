@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "AI Shield",
+  "version": "1.0",
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "permissions": ["activeTab", "scripting"],
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
