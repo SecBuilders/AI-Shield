@@ -1,61 +1,90 @@
-import requests
 import os
 import logging
-from dotenv import load_dotenv
+from typing import Dict, List
 
-load_dotenv()
+import torch
+from transformers import pipeline
+
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class TextDetector:
     def __init__(self):
-        # Using router.huggingface.co as api-inference is deprecated
-        self.api_url = "https://router.huggingface.co/hf-inference/models/openai-community/roberta-base-openai-detector"
-        self.api_key = os.getenv("HF_API_KEY")
-        if not self.api_key:
-            logger.warning("HF_API_KEY not found in environment variables. result will be mocked or fail.")
+        self.model_id = "fakespot-ai/roberta-base-ai-text-detection-v1"
+        self.classifier = None
+
+    def is_ready(self) -> bool:
+        return self.classifier is not None
+
+    def _load_model(self):
+        if self.classifier is not None:
+            return
+
+        device = 0 if torch.cuda.is_available() else -1
+        self.classifier = pipeline(
+            "text-classification",
+            model=self.model_id,
+            device=device,
+            truncation=True,
+            max_length=512,
+            top_k=None,
+        )
+
+    @staticmethod
+    def _clean_text(text: str) -> str:
+        return text.replace("\n", " ").strip()
+
+    @staticmethod
+    def _split_text(text: str, max_words: int = 400) -> List[str]:
+        words = text.split()
+        return [" ".join(words[i : i + max_words]) for i in range(0, len(words), max_words)]
+
+    @staticmethod
+    def _normalize_label(raw_label: str) -> str:
+        label = raw_label.strip().lower()
+        if "fake" in label or label in {"ai", "ai-generated", "label_1"}:
+            return "AI-Generated"
+        return "Human-Written"
 
     def predict(self, text: str):
         if not text or not text.strip():
             return {"error": "Empty text"}
 
-        if not self.api_key:
-             return {"error": "API Key missing. Check .env file."}
+        try:
+            self._load_model()
+        except Exception as e:
+            logger.error(f"Failed to load text model: {e}")
+            return {"error": "Text model failed to load"}
 
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        payload = {"inputs": text}
+        clean_text = self._clean_text(text)
+        chunks = self._split_text(clean_text)
+        if not chunks:
+            return {"error": "Empty text"}
 
         try:
-            response = requests.post(self.api_url, headers=headers, json=payload)
-            if response.status_code != 200:
-                logger.error(f"API Error Response: {response.text}")
-            response.raise_for_status()
-            
-            # HF API returns list of lists for classification: [[{'label': 'Real', 'score': 0.99}, ...]]
-            results = response.json()
-            
-            if isinstance(results, dict) and "error" in results:
-                return {"error": f"Model loading: {results.get('error')}"}
-
-            # roberta-base-openai-detector labels: 'Real' (Human), 'Fake' (AI)
-            # Flatten result
-            scores = results[0]
-            top_result = max(scores, key=lambda x: x['score'])
-            
-            label = top_result['label']
-            score = top_result['score']
-            
-            if label == 'Fake':
-                prediction = "AI-Generated"
-            else:
-                prediction = "Human-Written"
-
-            return {
-                "label": prediction,
-                "confidence": round(score * 100, 2),
-                "raw_result": scores
-            }
-
+            results = self.classifier(chunks)
         except Exception as e:
-            logger.error(f"Text API Error: {e}")
-            return {"error": "AI Service Unavailable"}
+            logger.error(f"Text prediction error: {e}")
+            return {"error": "Text detection failed"}
+
+        score_map: Dict[str, float] = {"Human-Written": 0.0, "AI-Generated": 0.0}
+        for chunk_result in results:
+            items = chunk_result if isinstance(chunk_result, list) else [chunk_result]
+            for item in items:
+                label = self._normalize_label(item["label"])
+                score_map[label] += float(item["score"])
+
+        chunk_count = max(len(results), 1)
+        score_map = {label: value / chunk_count for label, value in score_map.items()}
+
+        final_label = max(score_map, key=score_map.get)
+        confidence = score_map[final_label]
+
+        return {
+            "label": final_label,
+            "confidence": round(confidence * 100, 2),
+            "raw_result": {k: round(v * 100, 2) for k, v in score_map.items()},
+        }

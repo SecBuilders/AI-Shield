@@ -1,26 +1,68 @@
-// ===============================
-// API CONFIGURATION
-// ===============================
 const API_BASE_URL = "http://127.0.0.1:8000";
+const BACKEND_CHECK_INTERVAL_MS = 20000;
 
-// ===============================
-// TAB SWITCHING LOGIC
-// ===============================
 const tabButtons = document.querySelectorAll(".tabBtn");
 const tabContents = document.querySelectorAll(".tabContent");
 
-tabButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    tabButtons.forEach(btn => btn.classList.remove("active"));
-    tabContents.forEach(tab => tab.classList.remove("active"));
-    button.classList.add("active");
-    document.getElementById(button.dataset.tab).classList.add("active");
-  });
-});
+const backendStatusEl = document.getElementById("backendStatus");
+const textInputEl = document.getElementById("textInput");
+const textWordCountEl = document.getElementById("textWordCount");
 
-// ===============================
-// HELPER FUNCTIONS
-// ===============================
+const scanTextBtn = document.getElementById("scanTextBtn");
+const scanImageBtn = document.getElementById("scanImageBtn");
+const scanEmailBtn = document.getElementById("scanEmailBtn");
+const grabTextBtn = document.getElementById("grabTextBtn");
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function clampConfidence(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, n));
+}
+
+function setBackendStatus(mode, text) {
+  backendStatusEl.textContent = text;
+  backendStatusEl.classList.remove("status-online", "status-offline", "status-pending");
+  if (mode === "online") backendStatusEl.classList.add("status-online");
+  else if (mode === "offline") backendStatusEl.classList.add("status-offline");
+  else backendStatusEl.classList.add("status-pending");
+}
+
+async function apiFetch(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, options);
+  } catch (error) {
+    throw new Error("Could not connect to backend. Start backend/main.py first.");
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const detail =
+      (payload && (payload.detail || payload.error || payload.message)) ||
+      `Request failed (${response.status})`;
+    throw new Error(String(detail));
+  }
+
+  return payload || {};
+}
+
 function showResult(elementId, htmlContent) {
   const resultBox = document.getElementById(elementId);
   resultBox.innerHTML = htmlContent;
@@ -28,169 +70,191 @@ function showResult(elementId, htmlContent) {
 }
 
 function showLoading(elementId) {
-  const resultBox = document.getElementById(elementId);
-  resultBox.innerHTML = '<div class="loading">Analyzing... Please wait.</div>';
-  resultBox.classList.add("visible");
+  showResult(elementId, '<div class="loading">Analyzing...</div>');
 }
 
 function showError(elementId, message) {
-  const resultBox = document.getElementById(elementId);
-  resultBox.innerHTML = `<div style="color: red;">❌ Error: ${message}</div>`;
-  resultBox.classList.add("visible");
+  showResult(elementId, `<div class="error">Error: ${escapeHtml(message)}</div>`);
 }
 
-async function checkBackend() {
+function renderResult(label, confidence, isSafe, rawScores) {
+  const safeClass = isSafe ? "safe" : "danger";
+  const barColor = isSafe ? "var(--safe)" : "var(--danger)";
+  const width = clampConfidence(confidence);
+  const details = rawScores
+    ? Object.entries(rawScores)
+        .map(([k, v]) => `${escapeHtml(k)}: ${clampConfidence(v).toFixed(2)}%`)
+        .join(" | ")
+    : "";
+
+  return `
+    <div class="result-header">
+      <span class="result-label ${safeClass}">${escapeHtml(label)}</span>
+      <span class="result-score">${width.toFixed(2)}%</span>
+    </div>
+    <div class="confidence-bar">
+      <div class="confidence-level" style="width:${width}%; background:${barColor};"></div>
+    </div>
+    ${details ? `<div class="details">${details}</div>` : ""}
+  `;
+}
+
+function setButtonsDisabled(disabled) {
+  scanTextBtn.disabled = disabled;
+  scanImageBtn.disabled = disabled;
+  scanEmailBtn.disabled = disabled;
+  grabTextBtn.disabled = disabled;
+}
+
+function updateWordCount() {
+  const text = textInputEl.value.trim();
+  const count = text ? text.split(/\s+/).length : 0;
+  textWordCountEl.textContent = `${count} words`;
+}
+
+function getPageText() {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs.length) {
+        reject(new Error("No active tab found."));
+        return;
+      }
+
+      chrome.tabs.sendMessage(tabs[0].id, { action: "getPageText" }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error("Could not read page text on this tab."));
+          return;
+        }
+        if (!response || !response.text) {
+          reject(new Error("No readable text found on this page."));
+          return;
+        }
+        resolve(response.text);
+      });
+    });
+  });
+}
+
+async function checkBackendHealth() {
+  setBackendStatus("pending", "Checking backend...");
   try {
-    await fetch(`${API_BASE_URL}/`);
+    const health = await apiFetch("/health");
+    const loaded = Object.values((health && health.detectors) || {}).filter(Boolean).length;
+    setBackendStatus("online", `Backend online (${loaded}/3 loaded)`);
     return true;
-  } catch (e) {
+  } catch (error) {
+    setBackendStatus("offline", "Backend offline");
     return false;
   }
 }
 
-// ===============================
-// GRAB PAGE TEXT
-// ===============================
-document.getElementById("grabTextBtn").addEventListener("click", () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (!tabs.length) return;
-    chrome.tabs.sendMessage(
-      tabs[0].id,
-      { action: "getPageText" },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.error("Message failed:", chrome.runtime.lastError);
-          return;
-        }
-        if (response && response.text) {
-          document.getElementById("textInput").value = response.text.substring(0, 5000);
-        }
-      }
-    );
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    tabButtons.forEach((btn) => btn.classList.remove("active"));
+    tabContents.forEach((tab) => tab.classList.remove("active"));
+    button.classList.add("active");
+    document.getElementById(button.dataset.tab).classList.add("active");
   });
 });
 
-// ===============================
-// TEXT SCAN (REAL AI)
-// ===============================
-document.getElementById("scanTextBtn").addEventListener("click", async () => {
-  const text = document.getElementById("textInput").value.trim();
-  if (!text) return showError("textResult", "Please enter text first.");
+grabTextBtn.addEventListener("click", async () => {
+  try {
+    const text = await getPageText();
+    textInputEl.value = text.slice(0, 10000);
+    updateWordCount();
+  } catch (error) {
+    showError("textResult", error.message);
+  }
+});
+
+textInputEl.addEventListener("input", updateWordCount);
+
+scanTextBtn.addEventListener("click", async () => {
+  const text = textInputEl.value.trim();
+  if (!text) {
+    showError("textResult", "Please enter text first.");
+    return;
+  }
 
   showLoading("textResult");
-
+  setButtonsDisabled(true);
   try {
-    const response = await fetch(`${API_BASE_URL}/detect/text`, {
+    const data = await apiFetch("/detect/text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text })
+      body: JSON.stringify({ text }),
     });
-
-    if (!response.ok) throw new Error("Backend connection failed");
-
-    const data = await response.json();
 
     const isSafe = data.label === "Human-Written";
-    const colorClass = isSafe ? "safe" : "danger";
-    const width = data.confidence + "%";
-
-    const html = `
-            <div class="result-header">
-                <span class="${colorClass}">${data.label}</span>
-                <span>${data.confidence}%</span>
-            </div>
-            <div class="confidence-bar">
-                <div class="confidence-level" style="width: ${width}; background-color: var(--${isSafe ? 'secondary' : 'danger'});"></div>
-            </div>
-        `;
-    showResult("textResult", html);
-
+    showResult("textResult", renderResult(data.label, data.confidence, isSafe, data.raw_result));
   } catch (error) {
-    showError("textResult", "Is the Python backend running? " + error.message);
+    showError("textResult", error.message);
+  } finally {
+    setButtonsDisabled(false);
+    checkBackendHealth();
   }
 });
 
-// ===============================
-// IMAGE SCAN (REAL AI)
-// ===============================
-document.getElementById("scanImageBtn").addEventListener("click", async () => {
+scanImageBtn.addEventListener("click", async () => {
   const fileInput = document.getElementById("imageInput");
-  if (!fileInput.files.length) return showError("imageResult", "Please select an image.");
+  if (!fileInput.files.length) {
+    showError("imageResult", "Please select an image.");
+    return;
+  }
 
-  showLoading("imageResult");
+  const file = fileInput.files[0];
+  if (file.size > 10 * 1024 * 1024) {
+    showError("imageResult", "Image is too large. Use a file below 10 MB.");
+    return;
+  }
 
   const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
+  formData.append("file", file);
 
+  showLoading("imageResult");
+  setButtonsDisabled(true);
   try {
-    const response = await fetch(`${API_BASE_URL}/detect/image`, {
+    const data = await apiFetch("/detect/image", {
       method: "POST",
-      body: formData
+      body: formData,
     });
-
-    if (!response.ok) throw new Error("Backend connection failed");
-
-    const data = await response.json();
 
     const isSafe = data.label === "Real Image";
-    const colorClass = isSafe ? "safe" : "danger";
-    const width = data.confidence + "%";
-
-    const html = `
-            <div class="result-header">
-                <span class="${colorClass}">${data.label}</span>
-                <span>${data.confidence}%</span>
-            </div>
-            <div class="confidence-bar">
-                <div class="confidence-level" style="width: ${width}; background-color: var(--${isSafe ? 'secondary' : 'danger'});"></div>
-            </div>
-            <div style="font-size: 0.8em; margin-top: 5px; color: #666;">
-                Model: ViT-Deepfake
-            </div>
-        `;
-    showResult("imageResult", html);
-
+    showResult("imageResult", renderResult(data.label, data.confidence, isSafe, data.raw_result));
   } catch (error) {
-    showError("imageResult", "Is the Python backend running? " + error.message);
+    showError("imageResult", error.message);
+  } finally {
+    setButtonsDisabled(false);
+    checkBackendHealth();
   }
 });
 
-// ===============================
-// PHISHING SCAN (REAL AI)
-// ===============================
-document.getElementById("scanEmailBtn").addEventListener("click", async () => {
+scanEmailBtn.addEventListener("click", async () => {
   const text = document.getElementById("emailInput").value.trim();
-  if (!text) return showError("emailResult", "Please paste content.");
+  if (!text) {
+    showError("emailResult", "Please paste URL or email content first.");
+    return;
+  }
 
   showLoading("emailResult");
-
+  setButtonsDisabled(true);
   try {
-    const response = await fetch(`${API_BASE_URL}/detect/phishing`, {
+    const data = await apiFetch("/detect/phishing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text })
+      body: JSON.stringify({ text }),
     });
 
-    if (!response.ok) throw new Error("Backend connection failed");
-
-    const data = await response.json();
-
     const isSafe = data.label === "Legitimate";
-    const colorClass = isSafe ? "safe" : "danger";
-    const width = data.confidence + "%";
-
-    const html = `
-            <div class="result-header">
-                <span class="${colorClass}">${data.label}</span>
-                <span>${data.confidence}%</span>
-            </div>
-            <div class="confidence-bar">
-                <div class="confidence-level" style="width: ${width}; background-color: var(--${isSafe ? 'secondary' : 'danger'});"></div>
-            </div>
-        `;
-    showResult("emailResult", html);
-
+    showResult("emailResult", renderResult(data.label, data.confidence, isSafe, data.raw_result));
   } catch (error) {
-    showError("emailResult", "Is the Python backend running? " + error.message);
+    showError("emailResult", error.message);
+  } finally {
+    setButtonsDisabled(false);
+    checkBackendHealth();
   }
 });
+
+updateWordCount();
+checkBackendHealth();
+setInterval(checkBackendHealth, BACKEND_CHECK_INTERVAL_MS);
