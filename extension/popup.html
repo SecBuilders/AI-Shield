@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Shield - Security Suite</title>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --secondary: #10B981;
+      --danger: #EF4444;
+      --bg: #F3F4F6;
+      --text: #1F2937;
+      --card: #FFFFFF;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      width: 350px;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .tabs {
+      display: flex;
+      background: var(--card);
+      border-bottom: 1px solid #E5E7EB;
+    }
+
+    .tabBtn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-weight: 600;
+      color: #6B7280;
+      transition: all 0.2s;
+    }
+
+    .tabBtn:hover {
+      background: #F9FAFB;
+      color: var(--primary);
+    }
+
+    .tabBtn.active {
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .tabContent {
+      display: none;
+      padding: 20px;
+    }
+
+    .tabContent.active {
+      display: block;
+    }
+
+    textarea,
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #D1D5DB;
+      border-radius: 6px;
+      resize: vertical;
+      font-family: inherit;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    button.action-btn {
+      width: 100%;
+      padding: 10px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.action-btn:hover {
+      background: #4338CA;
+    }
+
+    button.secondary-btn {
+      background: #6B7280;
+      margin-bottom: 10px;
+    }
+
+    button.secondary-btn:hover {
+      background: #4B5563;
+    }
+
+    .resultBox {
+      margin-top: 15px;
+      padding: 15px;
+      background: var(--card);
+      border-radius: 8px;
+      border: 1px solid #E5E7EB;
+      min-height: 60px;
+      display: none;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .resultBox.visible {
+      display: block;
+    }
+
+    .result-header {
+      font-weight: bold;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .confidence-bar {
+      height: 8px;
+      background: #E5E7EB;
+      border-radius: 4px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .confidence-level {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.5s ease-out;
+    }
+
+    .safe {
+      color: var(--secondary);
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    input[type="file"] {
+      margin-bottom: 10px;
+    }
+
+    .loading {
+      text-align: center;
+      color: #6B7280;
+      font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    AI Shield 🛡️
+  </div>
+
+  <div class="tabs">
+    <button class="tabBtn active" data-tab="text">Text Analysis</button>
+    <button class="tabBtn" data-tab="image">Deepfake</button>
+    <button class="tabBtn" data-tab="email">Phishing</button>
+  </div>
+
+  <!-- TEXT SCAN -->
+  <div id="text" class="tabContent active">
+    <h3>📝 AI Text Detector</h3>
+    <button id="grabTextBtn" class="action-btn secondary-btn">Extract Page Text</button>
+    <textarea id="textInput" rows="6" placeholder="Paste text here to analyze..."></textarea>
+    <button id="scanTextBtn" class="action-btn">Analyze Text</button>
+    <div id="textResult" class="resultBox"></div>
+  </div>
+
+  <!-- IMAGE SCAN -->
+  <div id="image" class="tabContent">
+    <h3>🖼️ Deepfake Detector</h3>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="scanImageBtn" class="action-btn">Analyze Image</button>
+    <div id="imageResult" class="resultBox"></div>
+  </div>
+
+  <!-- EMAIL SCAN -->
+  <div id="email" class="tabContent">
+    <h3>🎣 Phishing Detector</h3>
+    <textarea id="emailInput" rows="6" placeholder="Paste URL or email content here..."></textarea>
+    <button id="scanEmailBtn" class="action-btn">Analyze Phishing</button>
+    <div id="emailResult" class="resultBox"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
