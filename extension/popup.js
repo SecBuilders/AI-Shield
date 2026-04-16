@@ -1,5 +1,6 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URLS = ["http://127.0.0.1:8000", "http://localhost:8000"];
 const BACKEND_CHECK_INTERVAL_MS = 20000;
+let activeApiBaseUrl = API_BASE_URLS[0];
 
 const tabButtons = document.querySelectorAll(".tabBtn");
 const tabContents = document.querySelectorAll(".tabContent");
@@ -39,28 +40,37 @@ function setBackendStatus(mode, text) {
 }
 
 async function apiFetch(path, options = {}) {
-  let response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, options);
-  } catch (error) {
-    throw new Error("Could not connect to backend. Start backend/main.py first.");
-  }
+  let lastError = null;
 
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    payload = null;
-  }
+  const candidates = [activeApiBaseUrl, ...API_BASE_URLS.filter((url) => url !== activeApiBaseUrl)];
+  for (const baseUrl of candidates) {
+    let response;
+    try {
+      response = await fetch(`${baseUrl}${path}`, options);
+    } catch (error) {
+      lastError = new Error(`Could not connect to backend at ${baseUrl}.`);
+      continue;
+    }
 
-  if (!response.ok) {
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      payload = null;
+    }
+
+    if (response.ok) {
+      activeApiBaseUrl = baseUrl;
+      return payload || {};
+    }
+
     const detail =
       (payload && (payload.detail || payload.error || payload.message)) ||
       `Request failed (${response.status})`;
-    throw new Error(String(detail));
+    lastError = new Error(String(detail));
   }
 
-  return payload || {};
+  throw lastError || new Error("Could not connect to backend. Start backend/main.py first.");
 }
 
 function showResult(elementId, htmlContent) {

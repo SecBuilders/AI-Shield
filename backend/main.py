@@ -5,7 +5,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from image_detection import ImageDetector
+from advanced_ai_detector import AdvancedAIImageDetector
 from phishing_detection import PhishingDetector
 from text_detection import TextDetector
 
@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 text_detector = TextDetector()
-image_detector = ImageDetector()
+image_detector = AdvancedAIImageDetector()
 phishing_detector = PhishingDetector()
 
 
