@@ -19,6 +19,9 @@ class TextDetector:
     def is_ready(self) -> bool:
         return self.classifier is not None
 
+    def load(self):
+        self._load_model()
+
     def _load_model(self):
         if self.classifier is not None:
             return
