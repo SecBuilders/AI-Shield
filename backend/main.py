@@ -1,3 +1,4 @@
+"""Dhiyan Ashthaf Akthar"""
 """
 AI Shield Backend - FastAPI entry point.
 Models are pre-loaded in the background on startup so the first
