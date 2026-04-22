@@ -1,7 +1,7 @@
 "use strict";
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const API_BASES = ["http://127.0.0.1:8080", "http://localhost:8080"];
+const API_BASES = ["https://secbuildersapi.in"];
 const MAX_HISTORY = 30;
 const HEALTH_MS = 18_000;
 
