@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ImageDetector:
+class AdvancedAIImageDetector:
     """
     Production-ready AI image detector using state-of-the-art techniques.
     """
@@ -99,9 +99,6 @@ class ImageDetector:
 
     def is_ready(self) -> bool:
         return self._is_ready
-
-    def load(self):
-        self._load_models()
     
     def _analyze_frequency_domain(self, image_array: np.ndarray) -> Dict[str, float]:
         """
@@ -384,7 +381,7 @@ class ImageDetector:
 if __name__ == "__main__":
     import sys
     
-    detector = ImageDetector()
+    detector = AdvancedAIImageDetector()
     
     if len(sys.argv) > 1:
         # Test with provided image file

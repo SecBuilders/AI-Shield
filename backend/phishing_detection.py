@@ -20,6 +20,9 @@ class PhishingDetector:
     def is_ready(self) -> bool:
         return self.classifier is not None
 
+    def load(self):
+        self._load_model()
+
     def _load_model(self):
         if self.classifier is not None:
             return
@@ -134,6 +137,11 @@ class PhishingDetector:
             "Phishing/Spam Attempt": (model_scores["Phishing/Spam Attempt"] * 0.8)
             + (heuristic_scores["Phishing/Spam Attempt"] * 0.2),
         }
+        
+        # normalize
+        total = combined_scores["Legitimate"] + combined_scores["Phishing/Spam Attempt"]
+        if total > 0:
+            combined_scores = {k: v / total for k, v in combined_scores.items()}
 
         final_label = max(combined_scores, key=combined_scores.get)
         confidence = combined_scores[final_label]
